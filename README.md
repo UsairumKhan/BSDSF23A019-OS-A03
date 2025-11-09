@@ -1,8 +1,19 @@
-# ROLLNO-OS-A03 - MyShell
+## Version 2 - Built-in Commands
+**Tag:** v2  
+This version adds internal (built-in) shell commands that execute directly inside the shell process.
 
-## Introduction
-This project is developed as part of the Operating Systems Programming Assignment (PA-03).  
-It implements a simple command-line interpreter (shell) similar to `bash`.  
-The shell will be extended in multiple versions, each adding new functionality.
+### Implemented Commands
+| Command | Description |
+|----------|-------------|
+| `exit` | Exit the shell. |
+| `cd <directory>` | Change the current working directory. |
+| `help` | Display information about available built-ins. |
+| `jobs` | Placeholder for future job control implementation. |
 
-## Project Structure
+### Key Learning
+- Difference between **built-in** and **external** commands.
+- Using `chdir()` to change the working directory.
+- Handling control flow within the main shell loop.
+
+### Example
+

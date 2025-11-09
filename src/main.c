@@ -6,17 +6,20 @@ int main() {
 
     while ((cmdline = read_cmd(PROMPT, stdin)) != NULL) {
         if ((arglist = tokenize(cmdline)) != NULL) {
-            execute(arglist);
 
-            // Free the memory allocated by tokenize()
-            for (int i = 0; arglist[i] != NULL; i++) {
-                free(arglist[i]);
+            // Handle built-in commands first
+            if (!handle_builtin(arglist)) {
+                execute(arglist);  // Run external command
             }
+
+            // Free memory
+            for (int i = 0; arglist[i] != NULL; i++)
+                free(arglist[i]);
             free(arglist);
         }
         free(cmdline);
     }
 
-    printf("\nShell exited.\n");
+    printf("\nmyshell exited.\n");
     return 0;
 }

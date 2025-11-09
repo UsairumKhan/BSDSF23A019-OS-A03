@@ -2,21 +2,20 @@
 #define SHELL_H
 
 #include <stdio.h>
-#include <string.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
-#include <sys/types.h>
 #include <sys/wait.h>
-#include <errno.h>
 
-#define MAX_LEN 512
-#define MAXARGS 10
-#define ARGLEN 30
-#define PROMPT "FCIT> "
+#define MAX_LEN 1024
+#define MAXARGS 100
+#define ARGLEN 100
+#define PROMPT "myshell> "
 
-// Function prototypes
+// Function declarations
 char* read_cmd(char* prompt, FILE* fp);
 char** tokenize(char* cmdline);
-int execute(char** arglist);
+int execute(char* arglist[]);
+int handle_builtin(char** arglist);  // new function declaration
 
-#endif // SHELL_H
+#endif
