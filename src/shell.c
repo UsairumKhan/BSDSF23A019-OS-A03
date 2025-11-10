@@ -1,41 +1,33 @@
 #include "shell.h"
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h>
+#include <errno.h>
 
-/* Internal (assignment) history storage */
 static char internal_history[HISTORY_SIZE][MAX_LEN];
 static int internal_history_count = 0;
 
-/* ----------------------------
-   read_cmd - wrapper for readline()
-   ---------------------------- */
-char* read_cmd(char* prompt) {
-    char* line = readline(prompt);   /* readline allocates the returned string */
+/* For background job tracking */
+typedef struct {
+    pid_t pid;
+    char command[MAX_LEN];
+} Job;
 
-    if (line == NULL)                /* Ctrl+D or EOF */
-        return NULL;
+static Job jobs[MAX_JOBS];
+static int job_count = 0;
+
+/* ------------------ Read Command ------------------ */
+char* read_cmd(char* prompt) {
+    char* line = readline(prompt);
+    if (line == NULL) return NULL;
 
     if (strlen(line) > 0) {
-        /* Add to readline history (so up/down works) */
         add_history(line);
-
-        /* Also save to our internal history (for 'history' builtin and !n) */
         internal_history_add(line);
     }
-
-    return line; /* caller must free line when done */
+    return line;
 }
 
-/* ----------------------------
-   tokenize - split input into argv-like array
-   Caller must free the returned char** and each string.
-   ---------------------------- */
+/* ------------------ Tokenize ------------------ */
 char** tokenize(char* cmdline) {
-    if (cmdline == NULL || cmdline[0] == '\0' || cmdline[0] == '\n') {
-        return NULL;
-    }
+    if (cmdline == NULL || cmdline[0] == '\0') return NULL;
 
     char** arglist = (char**)malloc(sizeof(char*) * (MAXARGS + 1));
     for (int i = 0; i < MAXARGS + 1; i++) {
@@ -45,11 +37,10 @@ char** tokenize(char* cmdline) {
 
     char* cp = cmdline;
     char* start;
-    int len;
-    int argnum = 0;
+    int len, argnum = 0;
 
     while (*cp != '\0' && argnum < MAXARGS) {
-        while (*cp == ' ' || *cp == '\t') cp++; /* skip whitespace */
+        while (*cp == ' ' || *cp == '\t') cp++;
         if (*cp == '\0') break;
         start = cp;
         len = 1;
@@ -69,93 +60,95 @@ char** tokenize(char* cmdline) {
     return arglist;
 }
 
-/* ----------------------------
-   Built-in command handler
-   Return 1 if command was handled (built-in), 0 otherwise.
-   ---------------------------- */
+/* ------------------ Built-in Commands ------------------ */
 int handle_builtin(char** arglist) {
-    if (arglist == NULL || arglist[0] == NULL)
-        return 0;
+    if (arglist == NULL || arglist[0] == NULL) return 0;
 
-    /* exit */
     if (strcmp(arglist[0], "exit") == 0) {
         printf("Exiting myshell...\n");
         exit(0);
-    }
-
-    /* cd */
-    else if (strcmp(arglist[0], "cd") == 0) {
-        if (arglist[1] == NULL) {
+    } else if (strcmp(arglist[0], "cd") == 0) {
+        if (arglist[1] == NULL)
             fprintf(stderr, "cd: expected argument\n");
-        } else if (chdir(arglist[1]) != 0) {
+        else if (chdir(arglist[1]) != 0)
             perror("cd failed");
-        }
         return 1;
-    }
-
-    /* help */
-    else if (strcmp(arglist[0], "help") == 0) {
+    } else if (strcmp(arglist[0], "help") == 0) {
         printf("Built-in commands:\n");
-        printf("  cd <dir>   - Change directory\n");
-        printf("  exit       - Exit the shell\n");
-        printf("  help       - Show this help message\n");
-        printf("  jobs       - Show background jobs (not yet implemented)\n");
-        printf("  history    - Show command history (internal)\n");
-        printf("  !n         - Re-execute nth command from history\n");
+        printf("  cd <dir>      - Change directory\n");
+        printf("  exit          - Exit the shell\n");
+        printf("  help          - Show help\n");
+        printf("  jobs          - Show background jobs\n");
+        printf("  history       - Show command history\n");
+        printf("  !n            - Execute nth command\n");
         return 1;
-    }
-
-    /* jobs (placeholder) */
-    else if (strcmp(arglist[0], "jobs") == 0) {
-        printf("Job control not yet implemented.\n");
-        return 1;
-    }
-
-    /* history builtin (uses internal history) */
-    else if (strcmp(arglist[0], "history") == 0) {
+    } else if (strcmp(arglist[0], "history") == 0) {
         internal_history_show();
         return 1;
+    } else if (strcmp(arglist[0], "jobs") == 0) {
+        remove_finished_jobs();
+        show_jobs();
+        return 1;
     }
 
-    return 0; /* not a built-in */
+    return 0;
 }
 
-/* ----------------------------
-   internal_history_add - keep an internal circular/shifted buffer
-   ---------------------------- */
+/* ------------------ Internal History ------------------ */
 void internal_history_add(const char* cmdline) {
     if (cmdline == NULL || strlen(cmdline) == 0)
         return;
-
     if (internal_history_count < HISTORY_SIZE) {
         strncpy(internal_history[internal_history_count], cmdline, MAX_LEN - 1);
-        internal_history[internal_history_count][MAX_LEN - 1] = '\0';
         internal_history_count++;
     } else {
-        /* remove oldest (shift left) and append new command at the end */
-        for (int i = 1; i < HISTORY_SIZE; i++) {
+        for (int i = 1; i < HISTORY_SIZE; i++)
             strncpy(internal_history[i - 1], internal_history[i], MAX_LEN);
-        }
         strncpy(internal_history[HISTORY_SIZE - 1], cmdline, MAX_LEN - 1);
-        internal_history[HISTORY_SIZE - 1][MAX_LEN - 1] = '\0';
     }
 }
 
-/* ----------------------------
-   internal_history_show - print internal history with numbers
-   ---------------------------- */
 void internal_history_show() {
-    for (int i = 0; i < internal_history_count; i++) {
+    for (int i = 0; i < internal_history_count; i++)
         printf("%d %s\n", i + 1, internal_history[i]);
-    }
 }
 
-/* ----------------------------
-   internal_history_get - return pointer to internal history string
-   index is 1-based.
-   ---------------------------- */
 char* internal_history_get(int index) {
     if (index < 1 || index > internal_history_count)
         return NULL;
     return internal_history[index - 1];
+}
+
+/* ------------------ Background Job Functions ------------------ */
+void add_job(pid_t pid, const char* cmd) {
+    if (job_count < MAX_JOBS) {
+        jobs[job_count].pid = pid;
+        strncpy(jobs[job_count].command, cmd, MAX_LEN - 1);
+        job_count++;
+    } else {
+        printf("Job limit reached!\n");
+    }
+}
+
+void remove_finished_jobs() {
+    int i = 0;
+    while (i < job_count) {
+        pid_t result = waitpid(jobs[i].pid, NULL, WNOHANG);
+        if (result == 0) {
+            i++;
+        } else {
+            for (int j = i; j < job_count - 1; j++)
+                jobs[j] = jobs[j + 1];
+            job_count--;
+        }
+    }
+}
+
+void show_jobs() {
+    if (job_count == 0)
+        printf("No background jobs.\n");
+    else {
+        for (int i = 0; i < job_count; i++)
+            printf("[%d] %d %s\n", i + 1, jobs[i].pid, jobs[i].command);
+    }
 }
