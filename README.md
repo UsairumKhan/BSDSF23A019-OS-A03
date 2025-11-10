@@ -1,19 +1,10 @@
-## Version 2 - Built-in Commands
-**Tag:** v2  
-This version adds internal (built-in) shell commands that execute directly inside the shell process.
+## Version 3 - Command History
+**Tag:** v3  
+This version adds command history and recall functionality.
 
-### Implemented Commands
-| Command | Description |
-|----------|-------------|
-| `exit` | Exit the shell. |
-| `cd <directory>` | Change the current working directory. |
-| `help` | Display information about available built-ins. |
-| `jobs` | Placeholder for future job control implementation. |
-
-### Key Learning
-- Difference between **built-in** and **external** commands.
-- Using `chdir()` to change the working directory.
-- Handling control flow within the main shell loop.
+### Features
+- Stores up to 50 previous commands.
+- `history` command shows all past commands with their numbers.
+- Users can re-execute commands using `!n`, where `n` is the history number.
 
 ### Example
-
