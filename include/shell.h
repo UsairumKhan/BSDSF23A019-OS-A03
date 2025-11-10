@@ -7,19 +7,29 @@
 #include <unistd.h>
 #include <sys/wait.h>
 
+/* Readline headers */
+#include <readline/readline.h>
+#include <readline/history.h>
+
 #define MAX_LEN 1024
 #define MAXARGS 100
 #define ARGLEN 100
 #define PROMPT "myshell> "
-#define HISTORY_SIZE 50  // store last 50 commands
+#define HISTORY_SIZE 50   /* internal history (for `history` builtin and !n) */
 
-// Function declarations
-char* read_cmd(char* prompt, FILE* fp);
+/* Function declarations */
+
+/* Input */
+char* read_cmd(char* prompt);    /* wrapper around readline() */
+
+/* Parsing & execution */
 char** tokenize(char* cmdline);
 int execute(char* arglist[]);
 int handle_builtin(char** arglist);
-void add_history(const char* cmdline);
-void show_history();
-char* get_history_command(int index);
+
+/* Internal history (kept in addition to readline history, so 'history' builtin and !n work) */
+void internal_history_add(const char* cmdline);
+void internal_history_show();
+char* internal_history_get(int index);
 
 #endif

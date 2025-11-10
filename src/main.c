@@ -1,19 +1,22 @@
 #include "shell.h"
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
 
 int main() {
     char* cmdline;
     char** arglist;
 
-    while ((cmdline = read_cmd(PROMPT, stdin)) != NULL) {
+    while ((cmdline = read_cmd(PROMPT)) != NULL) {
 
-        // Handle command recall: !n
+        /* Handle command recall: !n using internal history */
         if (cmdline[0] == '!' && strlen(cmdline) > 1) {
             int index = atoi(cmdline + 1);
-            char* recalled = get_history_command(index);
+            char* recalled = internal_history_get(index);
             if (recalled) {
                 printf("%s\n", recalled);
                 free(cmdline);
-                cmdline = strdup(recalled); // Reuse recalled command
+                cmdline = strdup(recalled); /* duplicate for tokenization and later free */
             } else {
                 printf("No such command in history.\n");
                 free(cmdline);
@@ -23,21 +26,18 @@ int main() {
 
         if ((arglist = tokenize(cmdline)) != NULL) {
 
-            // Add command to history
-            add_history(cmdline);
-
-            // Handle built-ins or execute external command
+            /* handle builtins first */
             if (!handle_builtin(arglist)) {
                 execute(arglist);
             }
 
-            // Free memory
+            /* free allocated arglist memory */
             for (int i = 0; arglist[i] != NULL; i++)
                 free(arglist[i]);
             free(arglist);
         }
 
-        free(cmdline);
+        free(cmdline); /* free string returned by readline() or strdup() */
     }
 
     printf("\nmyshell exited.\n");

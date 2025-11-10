@@ -1,37 +1,37 @@
 #include "shell.h"
-#include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unistd.h>
 
-static char history[HISTORY_SIZE][MAX_LEN];
-static int history_count = 0;
+/* Internal (assignment) history storage */
+static char internal_history[HISTORY_SIZE][MAX_LEN];
+static int internal_history_count = 0;
 
-// ----------------------------
-// Read a command line from user
-// ----------------------------
-char* read_cmd(char* prompt, FILE* fp) {
-    printf("%s", prompt);
-    char* cmdline = (char*) malloc(sizeof(char) * MAX_LEN);
-    int c, pos = 0;
+/* ----------------------------
+   read_cmd - wrapper for readline()
+   ---------------------------- */
+char* read_cmd(char* prompt) {
+    char* line = readline(prompt);   /* readline allocates the returned string */
 
-    while ((c = getc(fp)) != EOF) {
-        if (c == '\n') break;
-        cmdline[pos++] = c;
+    if (line == NULL)                /* Ctrl+D or EOF */
+        return NULL;
+
+    if (strlen(line) > 0) {
+        /* Add to readline history (so up/down works) */
+        add_history(line);
+
+        /* Also save to our internal history (for 'history' builtin and !n) */
+        internal_history_add(line);
     }
 
-    if (c == EOF && pos == 0) {
-        free(cmdline);
-        return NULL; // Handle Ctrl+D
-    }
-
-    cmdline[pos] = '\0';
-    return cmdline;
+    return line; /* caller must free line when done */
 }
 
-// ----------------------------
-// Tokenize command into arguments
-// ----------------------------
+/* ----------------------------
+   tokenize - split input into argv-like array
+   Caller must free the returned char** and each string.
+   ---------------------------- */
 char** tokenize(char* cmdline) {
     if (cmdline == NULL || cmdline[0] == '\0' || cmdline[0] == '\n') {
         return NULL;
@@ -49,7 +49,7 @@ char** tokenize(char* cmdline) {
     int argnum = 0;
 
     while (*cp != '\0' && argnum < MAXARGS) {
-        while (*cp == ' ' || *cp == '\t') cp++;
+        while (*cp == ' ' || *cp == '\t') cp++; /* skip whitespace */
         if (*cp == '\0') break;
         start = cp;
         len = 1;
@@ -69,81 +69,93 @@ char** tokenize(char* cmdline) {
     return arglist;
 }
 
-// ----------------------------
-// Handle built-in commands
-// ----------------------------
+/* ----------------------------
+   Built-in command handler
+   Return 1 if command was handled (built-in), 0 otherwise.
+   ---------------------------- */
 int handle_builtin(char** arglist) {
-    if (arglist[0] == NULL)
+    if (arglist == NULL || arglist[0] == NULL)
         return 0;
 
+    /* exit */
     if (strcmp(arglist[0], "exit") == 0) {
         printf("Exiting myshell...\n");
         exit(0);
     }
 
+    /* cd */
     else if (strcmp(arglist[0], "cd") == 0) {
-        if (arglist[1] == NULL)
+        if (arglist[1] == NULL) {
             fprintf(stderr, "cd: expected argument\n");
-        else if (chdir(arglist[1]) != 0)
+        } else if (chdir(arglist[1]) != 0) {
             perror("cd failed");
+        }
         return 1;
     }
 
+    /* help */
     else if (strcmp(arglist[0], "help") == 0) {
         printf("Built-in commands:\n");
         printf("  cd <dir>   - Change directory\n");
         printf("  exit       - Exit the shell\n");
         printf("  help       - Show this help message\n");
         printf("  jobs       - Show background jobs (not yet implemented)\n");
-        printf("  history    - Show command history\n");
+        printf("  history    - Show command history (internal)\n");
         printf("  !n         - Re-execute nth command from history\n");
         return 1;
     }
 
+    /* jobs (placeholder) */
     else if (strcmp(arglist[0], "jobs") == 0) {
         printf("Job control not yet implemented.\n");
         return 1;
     }
 
+    /* history builtin (uses internal history) */
     else if (strcmp(arglist[0], "history") == 0) {
-        show_history();
+        internal_history_show();
         return 1;
     }
 
-    return 0;
+    return 0; /* not a built-in */
 }
 
-// ----------------------------
-// Add command to history
-// ----------------------------
-void add_history(const char* cmdline) {
+/* ----------------------------
+   internal_history_add - keep an internal circular/shifted buffer
+   ---------------------------- */
+void internal_history_add(const char* cmdline) {
     if (cmdline == NULL || strlen(cmdline) == 0)
         return;
 
-    if (history_count < HISTORY_SIZE) {
-        strcpy(history[history_count++], cmdline);
+    if (internal_history_count < HISTORY_SIZE) {
+        strncpy(internal_history[internal_history_count], cmdline, MAX_LEN - 1);
+        internal_history[internal_history_count][MAX_LEN - 1] = '\0';
+        internal_history_count++;
     } else {
-        // Shift commands up (remove oldest)
-        for (int i = 1; i < HISTORY_SIZE; i++)
-            strcpy(history[i - 1], history[i]);
-        strcpy(history[HISTORY_SIZE - 1], cmdline);
+        /* remove oldest (shift left) and append new command at the end */
+        for (int i = 1; i < HISTORY_SIZE; i++) {
+            strncpy(internal_history[i - 1], internal_history[i], MAX_LEN);
+        }
+        strncpy(internal_history[HISTORY_SIZE - 1], cmdline, MAX_LEN - 1);
+        internal_history[HISTORY_SIZE - 1][MAX_LEN - 1] = '\0';
     }
 }
 
-// ----------------------------
-// Show history
-// ----------------------------
-void show_history() {
-    for (int i = 0; i < history_count; i++) {
-        printf("%d %s\n", i + 1, history[i]);
+/* ----------------------------
+   internal_history_show - print internal history with numbers
+   ---------------------------- */
+void internal_history_show() {
+    for (int i = 0; i < internal_history_count; i++) {
+        printf("%d %s\n", i + 1, internal_history[i]);
     }
 }
 
-// ----------------------------
-// Get specific history command
-// ----------------------------
-char* get_history_command(int index) {
-    if (index < 1 || index > history_count)
+/* ----------------------------
+   internal_history_get - return pointer to internal history string
+   index is 1-based.
+   ---------------------------- */
+char* internal_history_get(int index) {
+    if (index < 1 || index > internal_history_count)
         return NULL;
-    return history[index - 1];
+    return internal_history[index - 1];
 }
