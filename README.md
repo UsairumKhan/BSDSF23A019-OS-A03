@@ -1,18 +1,35 @@
-## Version 4 - Readline Integration (v4)
+his version adds input and output redirection to myshell, allowing commands to read from or write to files instead of the terminal.
 
-This version replaces the manual input routine with the GNU Readline library to provide:
-- Line editing (arrow keys, delete/backspace, etc.)
-- Command recall using Up/Down arrows
-- Tab completion for filenames (Readline's default completion)
-- Readline-managed history (plus an internal history kept for the `history` builtin and `!n`)
+Features
 
-Notes:
-- Readline `add_history()` is called automatically when the user types a non-empty line.
-- The shell still keeps an internal history array so the `history` command and `!n` recall (assignment requirement) continue to work.
+Supports standard Unix redirection operators:
 
-Build:
-```bash
-sudo apt install libreadline-dev   # if readline not installed
-make clean
-make
-./bin/myshell
+< Redirects standard input from a file
+
+> Redirects standard output to a file (overwrite)
+
+>> Redirects standard output to a file (append)
+
+Works with any executable command.
+
+Integrates seamlessly with previous features (history, readline, etc.).
+
+Implementation
+
+The shell scans each command line for redirection symbols before executing.
+
+When a redirection operator is found:
+
+< uses open(file, O_RDONLY)
+
+> uses open(file, O_WRONLY | O_CREAT | O_TRUNC, 0644)
+
+>> uses open(file, O_WRONLY | O_CREAT | O_APPEND, 0644)
+
+dup2() is used to replace the standard file descriptors:
+
+STDIN_FILENO for <
+
+STDOUT_FILENO for > and >>
+
+Redirection tokens are removed from the argument list before calling execvp()
