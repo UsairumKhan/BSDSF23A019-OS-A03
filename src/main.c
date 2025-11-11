@@ -1,6 +1,19 @@
 #include "shell.h"
 
+/* Signal handlers */
+void sigint_handler(int signo) {
+    printf("\nmyshell> ");
+    fflush(stdout);
+}
+
+void sigchld_handler(int signo) {
+    while (waitpid(-1, NULL, WNOHANG) > 0);
+}
+
 int main() {
+    signal(SIGINT, sigint_handler);
+    signal(SIGCHLD, sigchld_handler);
+
     char* cmdline;
     char** arglist;
 
@@ -22,7 +35,7 @@ int main() {
 
         if ((arglist = tokenize(cmdline)) != NULL) {
             if (!handle_builtin(arglist))
-                execute(arglist);
+                execute(arglist, cmdline);
 
             for (int i = 0; arglist[i] != NULL; i++)
                 free(arglist[i]);

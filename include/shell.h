@@ -17,14 +17,20 @@
 #define MAXARGS 100
 #define ARGLEN 100
 #define PROMPT "myshell> "
-#define HISTORY_SIZE 50   /* internal history */
+#define HISTORY_SIZE 50
 
 /* Function declarations */
-char* read_cmd(char* prompt);
-char** tokenize(char* cmdline);
-int execute(char* arglist[]);
-int handle_builtin(char** arglist);
 
+/* Input */
+char* read_cmd(char* prompt);
+
+/* Parsing & execution */
+char** tokenize(char* cmdline);
+int execute(char* arglist[], char* fullcmd);
+int handle_builtin(char** arglist);
+int handle_if_else(char* cmdline);
+
+/* Internal history */
 void internal_history_add(const char* cmdline);
 void internal_history_show();
 char* internal_history_get(int index);
