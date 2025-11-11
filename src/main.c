@@ -21,21 +21,8 @@ int main() {
         }
 
         if ((arglist = tokenize(cmdline)) != NULL) {
-            int background = 0;
-
-            /* Detect '&' at end */
-            for (int i = 0; arglist[i] != NULL; i++) {
-                if (strcmp(arglist[i], "&") == 0) {
-                    background = 1;
-                    free(arglist[i]);
-                    arglist[i] = NULL;
-                    break;
-                }
-            }
-
-            if (!handle_builtin(arglist)) {
-                execute(arglist, background);
-            }
+            if (!handle_builtin(arglist))
+                execute(arglist);
 
             for (int i = 0; arglist[i] != NULL; i++)
                 free(arglist[i]);
